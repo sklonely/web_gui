@@ -5,7 +5,7 @@ from .models import Post
 def index(request):
     context = {
         "block_title":"Dashborad",
-        'news_list': Post.objects.all(),
+        'cards': Post.objects.all(),
 
     }
-    return render(request, 'dashborad/index.html', context=context)
+    return render(request, 'dashborad/dashbord.html', context=context)
