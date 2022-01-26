@@ -1,47 +1,11 @@
 {% extends 'dashborad/base.html' %}
 
-{% block js %}
 
-<script>
-    
-    var clock = setInterval(updat, 1000);
-
-    var chatSocket = new WebSocket(
-        'ws://' + window.location.host +
-        '/ws/dashbord/update/');
-
-    
-    chatSocket.onmessage = function(e) {
-        var cards = JSON.parse(e.data)['cards']
-        for (index in cards) {
-            machine_card =  document.querySelector("#"+cards[index]['machine_name'])
-            machine_card.getElementsByTagName('h1')[1].textContent = cards[index]['production_capacity'] //產量
-            machine_card.getElementsByTagName('h1')[2].textContent = cards[index]['check_nums'] // 待減量
-            machine_card.getElementsByTagName('h1')[3].textContent = cards[index]['speed'] // 轉速
-
-            machine_card.querySelector("div > div.card-footer.text-muted.text-right").innerText = cards[index]['fiex_time']+" ago"
-        }
-        
-    };
-
-    chatSocket.onclose = function(e) {
-        console.error('Chat socket closed unexpectedly');
-    };
-
-    // 輪詢式做法
-    function updat() {
-
-        chatSocket.send(
-            JSON.stringify({
-            'message': "更新"}
-        ));
-
-        }
-
-</script>
-{% endblock  %}
 
 {% block content %}
+<script>
+    var vars = {};
+</script>
 {% if cards %}
 <div class="container mb-4 p-4" >
 <div id="cards" class="row row-cols-md-3 g-3">
@@ -51,50 +15,67 @@
         <!-- 卡片標題 -->
         <div class="card text-dark bg-light mb-3" >
             <div class="card-header text-light bg-dark d-flex align-items-center">
-                <div class="box border rounded-circle m-6 bg-success" style="width: 45px; height: 45px;"></div>    
+                <div id={{ card.machine_name }}_state class="box border rounded-circle m-6 bg-success" style="width: 45px; height: 45px;"></div>    
                 <h1 > {{ card.machine_name }}</h1>
             </div>
             <!-- 卡片內部 -->
             <div class="card-body ">
                 <!-- 上方標題 -->
-                <h2 class="card-title">工令 : {{card.work_no}}</h2>
-                <h2 class="card-title pb-3">操作員 : {{card.principal}}</h2>
+                <h2 id={{ card.machine_name }}_work_no class="card-title">工令 : 尚未載入</h2>
+                <h2 id={{ card.machine_name }}_principal class="card-title pb-3">操作員 : 尚未載入</h2>
                 <!-- 中間表格 -->
                 <div class="text-warning bg-dark rounded m-2">
 
                     <div class="container rounded">
-                        <p class="pt-2">產量</p>
-                    <h1 class="text-center pb-2">{{card.production_capacity}}</h1>
+                        <p class="pt-2">產量/預期產量</p>
+                    <h1 id={{ card.machine_name }}_production_capacity class="text-center pb-2">{{card.production_capacity}}</h1>
                     </div>
                     <div class="container rounded bg-warning text-dark">
-                        <p class=" pt-2 ">待檢量</p>
-                    <h1 class="text-center pb-2">{{card.check_nums}}</h1>
+                        <p class=" pt-2 ">稼動率</p>
+                    <h1 id={{ card.machine_name }}_activation class="text-center pb-2">{{card.activation}} %</h1>
                     </div>
                     <div class="container rounded">
-                        <p class="pt-2">轉速</p>
-                    <h1 class="text-center pb-2">{{card.speed}}</h1>
+                        <p class="pt-2">程式</p>
+                    <h1 id={{ card.machine_name }}_code class="text-center pb-2">{{card.code}}</h1>
                     </div>
                 </div>
                 <!-- 進度條 -->
-                <div class="row row-cols-1 row-cols-md-2 pt-4 ">
+                <div class="row">
+                    <canvas id={{ card.machine_name }}_Chart width="800" height="400"></canvas>
+                    <script>
+                    // 圖表生成
+                    ctx = document.getElementById('{{ card.machine_name }}_Chart');
+                    var data = {
+                        datasets: [{
+                            label: '稼動率變化表',
+                            data: [],
+                            fill: false,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        }]
+                    };
                     
-                    <div class="col">
-                        <h4 class="p-auto"> 工令完成進度 : </h4>
-                    </div>
-                    <div class="col pb-1">
-                        <div class="progress " style="height: 40px;">
-                            <div class="progress-bar" style="width: {{ card.complete_rate }}%; min-width: 3em;" role="progressbar"   aria-valuemin="0" aria-valuemax="100">{{card.complete_rate}} %</div>
-                        </div>
-                    </div>
-
-                    <div class="col">
-                        <h4 class="p-auto"> 生產良率 : </h4>
-                    </div>
-                    <div class="col pb-1">
-                        <div class="progress" style="height: 40px;">
-                            <div class="progress-bar"  style="width: {{card.good_rate}}%; min-width: 3em;" role="progressbar"   aria-valuemin="0" aria-valuemax="100">{{card.good_rate}} %</div>
-                        </div>
-                    </div>
+                    vars ['{{ card.machine_name }}' +'_chart']=new Chart(ctx,
+                    {
+                        type: 'line',
+                        data: data,
+                        options: {
+                            scales: {
+                                y: {
+                                    max:100,
+                                    min:0,
+                                    ticks: {
+                                        stepSize: 25
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    );
+                    
+                    
+                    </script>
+                    
                 </div>
                 
 
@@ -117,6 +98,95 @@
 
 {% endblock  %}
   
+{% block js %}
+
+<script>
+    // 輪詢式做法
+    
+    window.onload=function(){
+        var chatSocket = new WebSocket(
+        'ws://' + window.location.host +
+        '/ws/dashbord/update/');
+
+        chatSocket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+
+    function updat() {
+
+        chatSocket.send(
+            JSON.stringify({
+            'message': "更新"}
+        ));
+
+        }
+    function addData(chart, label, data) {
+        if (chart.data.labels.includes(label)){
+            return;
+        }
+        if (chart.data.labels.length>10){
+            chart.data.labels.shift();
+        }
+        chart.data.labels.push(label);
+        chart.data.datasets.forEach((dataset) => {
+        if (dataset.data.length >10)
+        {dataset.data.shift();}
+        dataset.data.push(data);
+    });
+    chart.update();
+}
+        
+    chatSocket.onmessage = function(e) {
+        var cards = JSON.parse(e.data)['cards']
+        const options = {scales: {yAxes: [{ticks: {beginAtZero: true,responsive: true }}]}}
+        for (index in cards) {
+            machine_card =  document.querySelector("#"+cards[index]['machine_name'])
+            machine_card_state = document.querySelector("#"+cards[index]['machine_name']+"_state")
+            
+            switch(cards[index]['state']){
+                case 11:
+                machine_card_state.classList.value = 'box border rounded-circle m-6 bg-success'
+                    break;
+                case 12:
+                machine_card_state.classList.value = 'box border rounded-circle m-6 bg-warning'
+
+                    break;
+                case 13:
+                machine_card_state.classList.value = 'box border rounded-circle m-6 bg-danger'
+                    break;
+                
+            }
+            if (cards[index]['part_count'] >0){
+                var one_part_time = (Date.parse(cards[index]['state_time']) - Date.parse(cards[index]['starting_time']) )/ cards[index]['part_count'] //每一件物品所花時間
+                var remaining_time =new Date(Date.parse(cards[index]['starting_time'])).addDays(1) - Date.parse(cards[index]['state_time'])
+                var predict_part_count = (cards[index]['part_count'] + (remaining_time/one_part_time) * (cards[index]['activation']/100)).toFixed(0)
+                // var max_part_count = ((all_time/one_part_time) ).toFixed(0)
+                machine_card.getElementsByTagName('p')[0].textContent = "產量/預期產量"
+                machine_card.getElementsByTagName('h1')[1].textContent = cards[index]['part_count'] +" / "+predict_part_count //產量
+            }
+            else{
+                machine_card.getElementsByTagName('p')[0].textContent = "產量"
+                machine_card.getElementsByTagName('h1')[1].textContent = cards[index]['part_count']  //產量
+            }
+            // console.log((all_time/one_part_time).toFixed(0))
+            
+            machine_card.getElementsByTagName('h1')[2].textContent = cards[index]['activation'] +" %" // 待減量
+            machine_card.getElementsByTagName('h1')[3].textContent = cards[index]['code'] // 轉速
+
+            machine_card.querySelector("div > div.card-footer.text-muted.text-right").innerText = cards[index]['fixtime']+" ago"
+            // JS下方圖表
+            var chart = vars[cards[index]['machine_name']+"_chart"]
+            timestr =new Date(Date.parse(cards[index]['state_time'])).format("hh:mm:ss")
+            addData(chart,timestr,cards[index]['activation'])
+        }
+        
+    };
+        var clock = setInterval(updat, 10);
+    };
+
+</script>
+{% endblock  %}
+
 
 <!-- 讀取中卡片樣式 -->
 <div class="card" aria-hidden="true">
@@ -135,3 +205,22 @@
       <a href="#" tabindex="-1" class="btn btn-primary disabled placeholder col-6"></a>
     </div>
   </div>
+
+<!-- 進度條 -->
+<!-- <div class="col">
+                        <h4 class="p-auto"> 工令完成進度 : </h4>
+                    </div>
+                    <div class="col pb-1">
+                        <div class="progress " style="height: 40px;">
+                            <div class="progress-bar" style="width: {{ card.complete_rate }}%; min-width: 3em;" role="progressbar"   aria-valuemin="0" aria-valuemax="100">{{card.complete_rate}} %</div>
+                        </div>
+                    </div>
+
+                    <div class="col">
+                        <h4 class="p-auto"> 生產良率 : </h4>
+                    </div>
+                    <div class="col pb-1">
+                        <div class="progress" style="height: 40px;">
+                            <div class="progress-bar"  style="width: {{card.good_rate}}%; min-width: 3em;" role="progressbar"   aria-valuemin="0" aria-valuemax="100">{{card.good_rate}} %</div>
+                        </div>
+                    </div> -->
