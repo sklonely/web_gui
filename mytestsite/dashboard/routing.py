@@ -3,5 +3,5 @@ from django.conf.urls import url
 from . import consumers
 
 websocket_urlpatterns = [
-    url(r'^ws/dashbord/update/', consumers.ChatConsumer.as_asgi()),
+    url(r'^ws/dashbord/update/', consumers.ChatConsumer_A.as_asgi()),
 ]

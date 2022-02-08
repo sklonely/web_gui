@@ -8,6 +8,7 @@ import simplejson as json
 from django.db.models import Count
 import pandas as pd
 import random
+from asgiref.sync import sync_to_async
 
 
 item_conut = 0
@@ -30,6 +31,7 @@ def index(request):
 
     return render(request, 'dashborad/dashbord.html',context=context)
 
+@sync_to_async
 def get_now():
     global item_conut
     cards = JyrTable.objects.filter(timestamp__gte=date.today()).values()
@@ -41,7 +43,7 @@ def get_now():
     else:
         return None,None
     
-
+@sync_to_async
 def update():
     data_arrangement()
     cards = Post.objects.values()
@@ -84,7 +86,7 @@ def json_serial(obj):
         return obj.isoformat()
     raise TypeError ("Type %s not serializable" % type(obj))
 
-
+@sync_to_async
 def data_arrangement():
     try:
         r,idx = get_now() # 模擬更新
